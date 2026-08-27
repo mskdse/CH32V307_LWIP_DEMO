@@ -167,13 +167,10 @@ uint32_t ETH_SendFrame(uint16_t len);
 void ETH_EnableMacFilter(void);
 
 #define PHY_PAG_SEL 0x1F
-void WCHNET_ETHIsr(void);
-void ETH_PHYLink( void );
 void WCHNET_HandlePhyNegotiation(void);
 void ETH_Init( uint8_t *macAddr );
 void WCHNET_GetMacAddr( uint8_t *p );
 void WCHNET_TimeIsr( uint16_t timperiod );
-void ETH_Configuration( uint8_t *macAddr );
 uint32_t MACRAW_Tx(uint8_t *buff, uint16_t len);
 
 #ifdef __cplusplus

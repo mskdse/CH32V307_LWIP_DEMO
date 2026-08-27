@@ -2,9 +2,15 @@
  * netconf.c - network configuration / lwIP glue for CH32V307 + FreeRTOS
  *
  * Flow:
- *   LwIP_Init()  -> ETH_Init() (hardware) -> tcpip_init() -> netif_add()
- *   a "netif" task then polls RX frames, tracks link status (LinkSta,
- *   updated in the ETH ISR) and starts DHCP on the first link-up.
+ *   LwIP_Init()  -> ethernetif_sync_init() -> ETH_Init() (hardware)
+ *                -> tcpip_init() -> netif_add()
+ *   a "netif" task blocks on the RX semaphore signalled by the ETH ISR
+ *   (see ethernetif_input), drains received frames into the tcpip_thread
+ *   mailbox, tracks link status (LinkSta) and starts DHCP on link-up.
+ *
+ * Gratuitous ARP is left to lwIP: netif_set_link_up() / netif_set_ipaddr()
+ * (the latter reached on DHCP bind) send it automatically via
+ * netif_issue_reports(), so no manual frame is built here.
  *
  * The driver's PHY negotiation state machine is fed by a FreeRTOS software
  * timer (WCHNET_TimeIsr -> LocalTime), replacing the TIM2 hardware interrupt.
@@ -25,6 +31,7 @@
 
 #include "string.h"
 #include "eth_driver.h"
+#include "ethernetif.h"
 
 /* from ethernetif.c */
 err_t ethernetif_init(struct netif *netif);
@@ -49,34 +56,6 @@ static void localtime_timer_cb(TimerHandle_t t)
 }
 
 /*********************************************************************
- * @fn      send_gratuitous_arp
- *
- * @brief   Broadcast a gratuitous ARP (who-has our own IP) so the peer
- *          learns our MAC/IP right after link-up.
- */
-static void send_gratuitous_arp(struct netif *netif)
-{
-    u8_t frame[60];
-    u8_t *mac = netif->hwaddr;
-    const ip4_addr_t *ip = netif_ip4_addr(netif);
-
-    memset(frame, 0, sizeof(frame));
-    memset(frame, 0xff, 6);                     /* dest: broadcast */
-    memcpy(frame + 6, mac, 6);                  /* src MAC */
-    frame[12] = 0x08; frame[13] = 0x06;         /* ARP */
-    frame[14] = 0x00; frame[15] = 0x01;         /* hw type ethernet */
-    frame[16] = 0x08; frame[17] = 0x00;         /* proto IPv4 */
-    frame[18] = 0x06; frame[19] = 0x04;         /* hw 6 proto 4 */
-    frame[20] = 0x00; frame[21] = 0x01;         /* op: request */
-    memcpy(frame + 22, mac, 6);                 /* sender MAC */
-    memcpy(frame + 28, ip, 4);                  /* sender IP */
-    memcpy(frame + 38, ip, 4);                  /* target IP = ours */
-    memset(frame + 42, 0x55, sizeof(frame) - 42);
-
-    MACRAW_Tx(frame, sizeof(frame));
-}
-
-/*********************************************************************
  * @fn      lwip_netif_thread
  *
  * @brief   RX poll + link management. Also drives the driver's PHY
@@ -93,6 +72,8 @@ static void lwip_netif_thread(void *arg)
 
     for(;;)
     {
+        /* blocks up to 10ms on the RX semaphore, then drains RX frames
+         * into the tcpip_thread mailbox */
         ethernetif_input(netif);
         /* driver PHY negotiation: corrects 10M PHY polarity / recovers a
          * dropped link; self-throttles on LocalTime (software timer) */
@@ -103,11 +84,11 @@ static void lwip_netif_thread(void *arg)
             if(!link_was_up)
             {
                 link_was_up = 1;
+                /* lwIP sends the gratuitous ARP itself here (netif_issue_reports) */
                 netifapi_netif_set_link_up(netif);
                 /* restore normal MAC filtering (driver enables promiscuous
                  * mode on link-up) */
                 ETH_EnableMacFilter();
-                send_gratuitous_arp(netif);
                 printf("Link up\r\n");
 #if LWIP_USE_DHCP
                 if(!dhcp_started)
@@ -139,8 +120,6 @@ static void lwip_netif_thread(void *arg)
                 printf("Link down\r\n");
             }
         }
-
-        vTaskDelay(pdMS_TO_TICKS(2));
     }
 }
 
@@ -166,6 +145,10 @@ void LwIP_Init(void)
     mac[4] = LWIP_MAC_ADDR4;
     mac[5] = LWIP_MAC_ADDR5;
 #endif
+
+    /* 1b. RX/TX semaphores must exist before ETH_Init() enables the ETH
+     * ISR, which signals them. */
+    ethernetif_sync_init();
 
     /* 2. Ethernet hardware + DMA descriptors + ETH IRQ */
     ETH_Init(mac);

@@ -12,6 +12,7 @@
 
 #include "string.h"
 #include "eth_driver.h"
+#include "ethernetif.h"
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -93,7 +94,7 @@ void WCHNET_TimeIsr( uint16_t timperiod )
  *
  * @return  none.
  */
-void WCHNET_PhyPNProcess(void)
+static void WCHNET_PhyPNProcess(void)
 {
     uint32_t PhyVal;
 
@@ -126,7 +127,7 @@ void WCHNET_PhyPNProcess(void)
  *
  * @return  none.
  */
-void WCHNET_LinkProcess( void )
+static void WCHNET_LinkProcess( void )
 {
     uint16_t phy_anlpar, phy_bmsr, phy_mdix, RegVal;
 
@@ -296,7 +297,7 @@ void WCHNET_HandlePhyNegotiation(void)
  *
  * @return  none.
  */
-void ETH_SetClock(void)
+static void ETH_SetClock(void)
 {
     RCC_PLL3Cmd(DISABLE);
     RCC_PREDIV2Config(RCC_PREDIV2_Div2);                             /* HSE = 8M */
@@ -314,7 +315,7 @@ void ETH_SetClock(void)
  *
  * @return  none.
  */
-void ETH_LinkUpCfg(uint16_t regval)
+static void ETH_LinkUpCfg(uint16_t regval)
 {
     /* no printf here: this runs in the ETH ISR on the interrupted task's
      * stack, and printf would risk overflowing a small task stack */
@@ -341,7 +342,7 @@ void ETH_LinkUpCfg(uint16_t regval)
  *
  * @return  none.
  */
-void ETH_PHYLink( void )
+static void ETH_PHYLink( void )
 {
     u16 phy_bsr, phy_stat, phy_anlpar, phy_bcr;
 
@@ -446,7 +447,7 @@ void ETH_PHYLink( void )
  *
  * @return  Initialization status.
  */
-uint32_t ETH_RegInit( ETH_InitTypeDef* ETH_InitStruct, uint16_t PHYAddress )
+static uint32_t ETH_RegInit( ETH_InitTypeDef* ETH_InitStruct, uint16_t PHYAddress )
 {
     /* Set the SMI interface clock, set as the main frequency divided by 42  */
     ETH->MACMIIAR = (uint32_t)ETH_MACMIIAR_CR_Div42;
@@ -499,7 +500,7 @@ uint32_t ETH_RegInit( ETH_InitTypeDef* ETH_InitStruct, uint16_t PHYAddress )
  *
  * @return  none
  */
-void ETH_Configuration( uint8_t *macAddr )
+static void ETH_Configuration( uint8_t *macAddr )
 {
     ETH_InitTypeDef ETH_InitStructure;
     uint16_t timeout = 100;
@@ -581,13 +582,16 @@ void ETH_Configuration( uint8_t *macAddr )
     /* Mask the interrupt that Rx crc error counter reaches half the maximum value */
     ETH->MMCRIMR = ETH_MMCRIMR_RGUFM | ETH_MMCRIMR_RFCEM;
 
-    /* RX is polled by the netif task, so the DMA R/T interrupts are NOT
-     * needed here. Leaving R enabled lets link noise trigger an interrupt
-     * storm (priority 0) that starves the RTOS tick. */
+    /* RX is event-driven: the DMA R interrupt wakes the netif task via a
+     * semaphore (ethernetif_rx_signal), and the T interrupt frees blocked
+     * TX waits (ethernetif_tx_signal). Both ISR bodies are minimal, so no
+     * interrupt storm that could starve the RTOS tick. */
     ETH_DMAITConfig(ETH_DMA_IT_NIS |\
                 ETH_DMA_IT_AIS |\
                 ETH_DMA_IT_RBU |\
-                ETH_DMA_IT_PHYLINK,\
+                ETH_DMA_IT_PHYLINK |\
+                ETH_DMA_IT_R |\
+                ETH_DMA_IT_T,\
                 ENABLE);
 }
 
@@ -740,7 +744,7 @@ void ETH_EnableMacFilter(void)
  *
  * @return  none
  */
-void WCHNET_ETHIsr(void)
+static void WCHNET_ETHIsr(void)
 {
     uint32_t int_sta;
 
@@ -765,12 +769,14 @@ void WCHNET_ETHIsr(void)
     {
         if( int_sta & ETH_DMA_IT_R )
         {
-            /*If you don't use the Ethernet library,
-             * you can do some data processing operations here*/
+            /* Wake the netif task: a frame has been received. */
+            ethernetif_rx_signal();
             ETH_DMAClearITPendingBit(ETH_DMA_IT_R);
         }
         if( int_sta & ETH_DMA_IT_T )
         {
+            /* Wake the TX waiter: the DMA freed a TX descriptor. */
+            ethernetif_tx_signal();
             ETH_DMAClearITPendingBit(ETH_DMA_IT_T);
         }
         if( int_sta & ETH_DMA_IT_PHYLINK)

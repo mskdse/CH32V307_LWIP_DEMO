@@ -2,9 +2,16 @@
  * @file
  * Ethernet netif for lwIP on CH32V307 (internal 10M PHY, raw DMA driver).
  *
- * RX is polled (no OS synchronisation inside the ISR): a dedicated
- * "netif" task calls ethernetif_input() and the frame is pushed into
- * the tcpip_thread mailbox via netif->input (tcpip_input).
+ * Event-driven RX/TX with OS synchronisation (ST lwIP_RTOS style):
+ *  - the ETH DMA ISR signals eth_rx_semaphore on every received frame and
+ *    eth_tx_semaphore on every TX completion (see ethernetif_rx/tx_signal);
+ *  - ethernetif_input() blocks on eth_rx_semaphore, then drains all pending
+ *    frames and pushes them into the tcpip_thread mailbox via netif->input;
+ *  - low_level_output() waits on eth_tx_semaphore when the DMA still owns
+ *    every TX descriptor, instead of dropping the frame.
+ * Cross-thread protection of the lwIP core comes from lwIP's own core lock
+ * (LWIP_TCPIP_CORE_LOCKING), implemented as a recursive FreeRTOS mutex in
+ * the sys_arch port.
  */
 
 #include "lwip/opt.h"
@@ -18,10 +25,45 @@
 #include "lwip/stats.h"
 #include "lwip/etharp.h"
 
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include "task.h"
+
 #include "eth_driver.h"
+#include "ethernetif.h"
 
 #define IFNAME0 'e'
 #define IFNAME1 'n'
+
+/* Semaphores shared with the ETH DMA ISR (see ethernetif.h). */
+static SemaphoreHandle_t eth_rx_semaphore;
+static SemaphoreHandle_t eth_tx_semaphore;
+
+void ethernetif_sync_init(void)
+{
+    eth_rx_semaphore = xSemaphoreCreateBinary();
+    eth_tx_semaphore = xSemaphoreCreateBinary();
+    configASSERT(eth_rx_semaphore != NULL);
+    configASSERT(eth_tx_semaphore != NULL);
+}
+
+/* Called from the ETH ISR: wake the netif task that a frame is pending. */
+void ethernetif_rx_signal(void)
+{
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    xSemaphoreGiveFromISR(eth_rx_semaphore, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+/* Called from the ETH ISR: a TX descriptor has been freed by the DMA. */
+void ethernetif_tx_signal(void)
+{
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    xSemaphoreGiveFromISR(eth_tx_semaphore, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
 
 /*********************************************************************
  * @fn      low_level_init
@@ -60,8 +102,18 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
     dst = ETH_GetTxBuf();
     if(dst == NULL)
     {
-        /* DMA still owns the TX descriptor: drop for now (TCP retries) */
-        return ERR_IF;
+        /* Every TX descriptor is still owned by the DMA: wait for a TX-
+         * complete interrupt to free one. The timeout only guards against
+         * a dead/never-completing link, so TCP retransmission can recover. */
+        if(xSemaphoreTake(eth_tx_semaphore, pdMS_TO_TICKS(50)) == pdTRUE)
+        {
+            dst = ETH_GetTxBuf();
+        }
+        if(dst == NULL)
+        {
+            LINK_STATS_INC(link.drop);
+            return ERR_IF;
+        }
     }
 
     for(q = p; q != NULL; q = q->next)
@@ -117,15 +169,19 @@ static struct pbuf *low_level_input(struct netif *netif)
 /*********************************************************************
  * @fn      ethernetif_input
  *
- * @brief   Poll the interface and pass received frames to lwIP.
- *          Called repeatedly from the netif task in netconf.c.
+ * @brief   Block until the ETH ISR signals a received frame (or a short
+ *          poll timeout expires so link/PHY handling keeps running), then
+ *          push every pending frame into the tcpip_thread mailbox.
+ *          Called from the netif task in netconf.c.
  */
 void ethernetif_input(struct netif *netif)
 {
     struct pbuf *p;
 
-    p = low_level_input(netif);
-    if(p != NULL)
+    xSemaphoreTake(eth_rx_semaphore, pdMS_TO_TICKS(10));
+
+    /* Drain everything the DMA received since the last wake-up. */
+    while((p = low_level_input(netif)) != NULL)
     {
         if(netif->input(p, netif) != ERR_OK)
         {

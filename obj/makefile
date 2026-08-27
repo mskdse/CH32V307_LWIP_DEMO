@@ -65,7 +65,7 @@ main-build: CH32V307-FreeRTOS.elf secondary-outputs
 
 # Tool invocations
 CH32V307-FreeRTOS.elf: $(OBJS) $(USER_OBJS_ESCAPE)
-	@	riscv-none-embed-gcc -march=rv32imacxw -mabi=ilp32 -msmall-data-limit=8 -msave-restore -fmax-errors=20 -Os -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-common -Wunused -Wuninitialized -g -T "d:\stm32project\CH32V307-FreeRTOS\Ld\Link.ld" -nostartfiles -Xlinker --gc-sections -Wl,-Map,"CH32V307-FreeRTOS.map" --specs=nano.specs --specs=nosys.specs -o "CH32V307-FreeRTOS.elf" $(OBJS) $(LIBS)
+	@	riscv-none-embed-gcc -march=rv32imacxw -mabi=ilp32 -msmall-data-limit=8 -msave-restore -fmax-errors=20 -Os -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-common -Wunused -Wuninitialized -g -T "d:\stm32project\CH32V307_LWIP\Ld\Link.ld" -nostartfiles -Xlinker --gc-sections -Wl,-Map,"CH32V307-FreeRTOS.map" --specs=nano.specs --specs=nosys.specs -o "CH32V307-FreeRTOS.elf" $(OBJS) $(LIBS)
 CH32V307-FreeRTOS.hex: CH32V307-FreeRTOS.elf
 	@	riscv-none-embed-objcopy -O ihex "CH32V307-FreeRTOS.elf" "CH32V307-FreeRTOS.hex"
 CH32V307-FreeRTOS.lst: CH32V307-FreeRTOS.elf

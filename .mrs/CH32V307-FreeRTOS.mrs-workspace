@@ -5,7 +5,7 @@
 		},
 		{
 			"name": "CH32V307-FreeRTOS",
-			"path": "D:\\stm32project\\CH32V307-FreeRTOS"
+			"path": "D:\\stm32project\\CH32V307_LWIP"
 		}
 	],
 	"settings": {

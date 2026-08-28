@@ -1,4 +1,4 @@
-ETH_Driver/eth_driver_10M.o: ../ETH_Driver/eth_driver_10M.c \
+ETH_Driver/eth_driver_RMII.o: ../ETH_Driver/eth_driver_RMII.c \
  ../ETH_Driver/eth_driver.h d:/stm32project/CH32V307_LWIP/Debug/debug.h \
  d:/stm32project/CH32V307_LWIP/Peripheral/inc/ch32v30x.h \
  d:/stm32project/CH32V307_LWIP/Core/core_riscv.h \
@@ -28,7 +28,17 @@ ETH_Driver/eth_driver_10M.o: ../ETH_Driver/eth_driver_10M.c \
  d:/stm32project/CH32V307_LWIP/Peripheral/inc/ch32v30x_usart.h \
  d:/stm32project/CH32V307_LWIP/Peripheral/inc/ch32v30x_wwdg.h \
  d:/stm32project/CH32V307_LWIP/User/ch32v30x_it.h \
- d:/stm32project/CH32V307_LWIP/Peripheral/inc/ch32v30x_misc.h
+ d:/stm32project/CH32V307_LWIP/Peripheral/inc/ch32v30x_misc.h \
+ d:/stm32project/CH32V307_LWIP/LWIP_PORT/ethernetif.h \
+ d:/stm32project/CH32V307_LWIP/FreeRTOS/include/FreeRTOS.h \
+ d:/stm32project/CH32V307_LWIP/User/FreeRTOSConfig.h \
+ d:/stm32project/CH32V307_LWIP/FreeRTOS/include/projdefs.h \
+ d:/stm32project/CH32V307_LWIP/FreeRTOS/include/portable.h \
+ d:/stm32project/CH32V307_LWIP/FreeRTOS/include/deprecated_definitions.h \
+ d:/stm32project/CH32V307_LWIP/FreeRTOS/portable/GCC/RISC-V/portmacro.h \
+ d:/stm32project/CH32V307_LWIP/FreeRTOS/include/mpu_wrappers.h \
+ d:/stm32project/CH32V307_LWIP/FreeRTOS/include/task.h \
+ d:/stm32project/CH32V307_LWIP/FreeRTOS/include/list.h
 
 ../ETH_Driver/eth_driver.h:
 
@@ -91,3 +101,23 @@ d:/stm32project/CH32V307_LWIP/Peripheral/inc/ch32v30x_wwdg.h:
 d:/stm32project/CH32V307_LWIP/User/ch32v30x_it.h:
 
 d:/stm32project/CH32V307_LWIP/Peripheral/inc/ch32v30x_misc.h:
+
+d:/stm32project/CH32V307_LWIP/LWIP_PORT/ethernetif.h:
+
+d:/stm32project/CH32V307_LWIP/FreeRTOS/include/FreeRTOS.h:
+
+d:/stm32project/CH32V307_LWIP/User/FreeRTOSConfig.h:
+
+d:/stm32project/CH32V307_LWIP/FreeRTOS/include/projdefs.h:
+
+d:/stm32project/CH32V307_LWIP/FreeRTOS/include/portable.h:
+
+d:/stm32project/CH32V307_LWIP/FreeRTOS/include/deprecated_definitions.h:
+
+d:/stm32project/CH32V307_LWIP/FreeRTOS/portable/GCC/RISC-V/portmacro.h:
+
+d:/stm32project/CH32V307_LWIP/FreeRTOS/include/mpu_wrappers.h:
+
+d:/stm32project/CH32V307_LWIP/FreeRTOS/include/task.h:
+
+d:/stm32project/CH32V307_LWIP/FreeRTOS/include/list.h:

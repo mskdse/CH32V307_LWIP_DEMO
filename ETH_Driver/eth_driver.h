@@ -21,7 +21,22 @@
  /* 1: interrupt 0: polling in RMII or RGMII mode */
 #define LINK_STAT_ACQUISITION_METHOD            0
 
+/* ============================================================
+ * PHY SELECTION
+ *   1 = external LAN8720A (RMII, 10/100M) -> eth_driver_RMII.c
+ *   0 = internal 10M PHY                   -> eth_driver_10M.c
+ * Both driver files are always compiled; this macro decides which
+ * one actually builds. The lwIP layer (netconf.c / ethernetif.c)
+ * is PHY-independent and does not change.
+ * ============================================================ */
+#define LWIP_USE_LAN8720A                       1
+
 #define PHY_ADDRESS                             1
+
+/* LAN8720A external PHY (used when LWIP_USE_LAN8720A == 1) */
+#define LAN8720A_PHY_ADDRESS                    1
+#define LAN8720A_CLEAR_PHY_REG                  30   /* Interrupt Mask Register */
+#define LAN8720A_PSCR_REG                       31   /* PHY Special Control/Status Register */
 
 #define ETH_DMARxDesc_FrameLengthShift          16
 

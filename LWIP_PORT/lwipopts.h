@@ -137,6 +137,10 @@
 /* ====================================================
  * 11. NETWORK PARAMETERS (edit here)
  * ==================================================== */
+/* Ethernet PHY: 1 = external LAN8720A (RMII 10/100M), 0 = internal 10M PHY.
+ * This switch lives in ETH_Driver/eth_driver.h (LWIP_USE_LAN8720A); it only
+ * decides which of the two driver files compiles, the lwIP layer is unchanged. */
+
 /* 1: DHCP dynamic address, 0: static address below */
 #define LWIP_USE_DHCP                   0
 

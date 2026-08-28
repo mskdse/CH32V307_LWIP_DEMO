@@ -10,8 +10,11 @@
 * microcontroller manufactured by Nanjing Qinheng Microelectronics.
 *******************************************************************************/
 
+#include "eth_driver.h"          /* defines LWIP_USE_LAN8720A */
+
+#if !LWIP_USE_LAN8720A
+
 #include "string.h"
-#include "eth_driver.h"
 #include "ethernetif.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -828,4 +831,6 @@ void ETH_IRQHandler(void)
     WCHNET_ETHIsr();
 }
 
-/******************************** endfile @ eth_driver ******************************/
+#endif /* !LWIP_USE_LAN8720A */
+
+/******************************** endfile @ eth_driver_10M ******************************/

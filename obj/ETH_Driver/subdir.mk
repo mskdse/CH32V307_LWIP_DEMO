@@ -5,13 +5,16 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../ETH_Driver/eth_driver_10M.c 
+../ETH_Driver/eth_driver_10M.c \
+../ETH_Driver/eth_driver_RMII.c 
 
 C_DEPS += \
-./ETH_Driver/eth_driver_10M.d 
+./ETH_Driver/eth_driver_10M.d \
+./ETH_Driver/eth_driver_RMII.d 
 
 OBJS += \
-./ETH_Driver/eth_driver_10M.o 
+./ETH_Driver/eth_driver_10M.o \
+./ETH_Driver/eth_driver_RMII.o 
 
 DIR_OBJS += \
 ./ETH_Driver/*.o \
